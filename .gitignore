@@ -1,0 +1,4 @@
+*.dblite
+hardware.asc
+hardware.bin
+hardware.json
