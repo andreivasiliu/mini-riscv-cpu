@@ -11,18 +11,23 @@ module main (
     input [23:0] io_dip,
   );
 
-  wire [23:0] out;
+  wire [23:0] out24;
+  wire [7:0] out8;
+  wire slow_clk;
+
+  divide_by_n #(5_000_000) _sc (.clk, .rst, .out(slow_clk));
 
   riscv_core cpu (
-    .clk,
+    .clk(slow_clk),
     .rst,
-    .out,
+    .out24,
+    .out8,
   );
 
   always @* begin
-    io_seg <= 0;
-    io_sel <= 0;
-    io_led <= out;
+    io_seg <= out8;
+    io_sel <= 4'b0001;
+    io_led <= out24;
     led <= io_button;
     usb_tx <= usb_rx;
     // io_led[23:16] <= io_dip[23:16];
