@@ -2,3 +2,6 @@
 hardware.asc
 hardware.bin
 hardware.json
+*.hex
+*.bin
+*.out

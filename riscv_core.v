@@ -49,8 +49,7 @@ module riscv_core(
 
 
   initial begin
-    memory[0] <= 1;
-    memory[1] <= 2;
+    $readmemh("program.hex", memory);
   end
 
   always @(posedge clk) begin
