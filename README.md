@@ -19,3 +19,10 @@ run at ~40MHz (out of 100MHz), and takes four cycles for an instruction.
 This uses the `apio` toolchain, and building the FPGA gateware should be as easy as `apio build` and `apio upload`.
 
 To compile the program that's pre-loaded into RAM, a `gcc` toolchain with the `riscv32` or `riscv64` target is required.
+
+## Files
+
+* [`alchitry.v`](alchitry.v) - Top-level Verilog module that fixes some of Alchitry's issues
+* [`main.v`](main.v) - Main module that hooks the CPU up to the board's LEDs
+* [`riscv_core.v`](riscv_core.v) - The RISC-V CPU core
+* [`simple1.s`](simple1.s) and [`simple2.c`](simple2.c) - Example working programs that can run on the CPU
