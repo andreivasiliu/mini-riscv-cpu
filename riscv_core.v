@@ -5,19 +5,26 @@ module riscv_core(
     output reg [7:0] out8,
   );
 
-  reg [1:0] stage;
-  reg [31:0] instruction;
-  reg [29:0] program_counter, jump_target, branch_target;
-  reg branch_condition;
-  reg exception;
+  // CPU internal state
+  reg [1:0] stage;  // 4-stage CPU
+  reg [31:0] instruction;  // The current instruction being executed
+  reg [29:0] program_counter, jump_target, branch_target;  // Flow control
+  reg branch_condition;  // If true, jump to branch_target
+  reg exception;  // If true, the CPU didn't understand this instruction
 
-  reg [31:0] memory [0:1023];
-  reg [31:0] registers [0:31];
+  reg [31:0] memory [0:1023];  // 4KB of RAM, all of it as L1 cache.
+  reg [31:0] registers [0:31];  // x0 to x31 registers
 
-  wire [6:0] opcode, funct7;
-  wire [4:0] rd, rs1, rs2;
-  wire [2:0] funct3;
-  wire [11:0] imm12;
+  // Various interpretations of the instruction bits
+  wire [6:0] opcode = instruction[6:0];
+  wire [4:0] rd = instruction[11:7];  // Destination register
+  wire [4:0] rs1 = instruction[19:15];  // Argument 1
+  wire [4:0] rs2 = instruction[24:20];  // Argument 2
+  wire [6:0] funct7 = instruction[31:25];
+  wire [2:0] funct3 = instruction[14:12];
+
+  // Various immediate representations (constant numbers embedded into the instruction)
+  wire [11:0] imm12 = instruction[31:20];
   wire signed [11:0] imm12_b = {
     instruction[31], instruction[7], instruction[30:25], instruction[11:8]
   };
@@ -28,23 +35,18 @@ module riscv_core(
   };
   wire signed [11:0] store_offset = {instruction[31:25], instruction[11:7]};
   wire signed [11:0] load_offset = instruction[31:20];
-  assign opcode = instruction[6:0];
-  assign rd = instruction[11:7];
-  assign funct3 = instruction[14:12];
-  assign rs1 = instruction[19:15];
-  assign rs2 = instruction[24:20];
-  assign funct7 = instruction[31:25];
-  assign imm12 = instruction[31:20];
 
+  // Values of current registers being operated upon
   reg signed [31:0] rs1_value, rs2_value, rd_value;
+  wire [31:0] rs1_value_unsigned = rs1_value;
+  wire [31:0] rs2_value_unsigned = rs2_value;
+  wire [31:0] imm12_value_unsigned = imm12_value;
+
+  // Immediates sign-extended to 31-bits
   reg signed [31:0] imm12_value, store_word, load_word;
   reg [31:0] store_location, load_location;
 
-  wire [31:0] rs1_value_unsigned, rs2_value_unsigned, imm12_value_unsigned;
-  assign rs1_value_unsigned = rs1_value;
-  assign rs2_value_unsigned = rs2_value;
-  assign imm12_value_unsigned = imm12_value;
-
+  // Register+offset, used for both addi and as a jump target
   wire [31:0] rs1_plus_imm12 = rs1_value + imm12_value;
 
 
@@ -56,6 +58,7 @@ module riscv_core(
     stage <= stage + 1;
 
     case (stage)
+      // Stage 0 - reset state and read next instruction
       0: begin
         instruction <= memory[program_counter];
         registers[0] <= 32'b0;
@@ -63,18 +66,20 @@ module riscv_core(
         branch_condition <= 0;
         exception <= 0;
       end
+      // Stage 1 - fetch registers and compute memory offsets
       1: begin
         rs1_value <= registers[rs1];
         rs2_value <= registers[rs2];
         imm12_value <= {{20{imm12[11]}}, imm12};
         store_location <= registers[rs1] + store_offset;
         load_location <= registers[rs1] + load_offset;
-        // store_word <= memory[registers[rs1] + store_offset];
-        // load_word <= memory[registers[rs1] + load_offset];
       end
+      // Stage 2 - compute result of operation
       2: begin
+        // Note: Opcode is 6:0, but 1:0 seems to always be 0b11
         case (opcode[6:2])
           // R-Format instructions (register operations)
+          // Register arithmetic/logic operations
           5'b01100: begin
             case (funct3)
               0: if (!funct7[5]) begin
@@ -99,6 +104,7 @@ module riscv_core(
           end
 
           // I-Format instructions (immediate operations)
+          // Register arithmetic/logic operations
           5'b00100: begin
             case (funct3)
               0: rd_value <= rs1_plus_imm12;  // addi
@@ -113,11 +119,13 @@ module riscv_core(
               end
             endcase
           end
+          // Unconditional jump to register + small immediate offset
           5'b11001: begin
             // TODO: check sizes
             jump_target <= rs1_plus_imm12[31:2];  // jalr
             rd_value <= {jump_target, 2'b00};
           end
+          // Load value from RAM into register
           5'b00000: begin
             load_word = memory[load_location[31:2]];
 
@@ -154,14 +162,17 @@ module riscv_core(
           end
 
           // U-Format instructions (upper-immediate)
+          // Load upper-immediate
           5'b01101: begin
             rd_value <= {imm20_u, {12{1'b0}}};  // lui
           end
+          // Add upper-immediate to program counter
           5'b00101: begin
             rd_value <= {imm20_u, 12'b0} + {program_counter, 2'b0};  // auipc
           end
 
           // J-Format instructions (jumps)
+          // Unconditional jump to large immediate offset
           5'b11011: begin
             // TODO: check sizes
             jump_target <= program_counter + imm20_j[21:3];  // jal
@@ -169,6 +180,7 @@ module riscv_core(
           end
 
           // B-Format instructions (branches)
+          // Branch (jump) to small immediate offset on condition
           5'b11000: begin
             branch_target <= program_counter + imm12_b[11:1];
 
@@ -185,6 +197,7 @@ module riscv_core(
           end
 
           // S-Format instructions (stores)
+          // Store value from register into RAM
           5'b01000: begin
             store_word = memory[store_location[31:2]];
 
@@ -212,12 +225,14 @@ module riscv_core(
               3: exception <= 1;
             endcase
           end
+          // Unknown opcode
           default: begin
-            rd_value <= {32{1'bx}};
+            rd_value <= {32{1'bx}};  // Set to result to undefined, aka "don't care"
             exception <= 1;
           end
         endcase
       end
+      // Stage 3 - store result of operation and program counter
       3: begin
         if (branch_condition) begin
           program_counter <= branch_target;
