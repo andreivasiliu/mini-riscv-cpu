@@ -18,17 +18,17 @@ inline int hello_word(int index) {
 }
 
 void _start() {
-    volatile int *addr = (volatile int *) 0x800;
+    volatile int *addr = (volatile int *) 0x30000;
     int value = 0;
 
     while (1) {
-        *addr = 0b01110110;
+        *addr = 0b01110110000000000000000000000000;
         *addr = 0;
-        *addr = 0b01111001;
+        *addr = 0b011110010000000000000000;
         *addr = 0;
-        *addr = 0b00111000;
+        *addr = 0b0011100000000000;
         *addr = 0;
-        *addr = 0b00111000;
+        *addr = 0b0011100000000000;
         *addr = 0;
         *addr = 0b00111111;
         *addr = 0;
