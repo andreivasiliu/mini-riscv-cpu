@@ -2,19 +2,19 @@
 
 module uart_tx #(
     parameter BAUD_RATE = 115200,
-    parameter CLOCK_SPEED = 100_000_000,
+    parameter CLOCK_SPEED = 100_000_000
   ) (
     input clk,
     input rst,
     input [7:0] tx_data,
     input tx_enable,
     output reg tx_done,
-    output reg serial_out,
+    output reg serial_out
   );
 
   parameter TICKS_PER_BIT = CLOCK_SPEED / BAUD_RATE;
 
-  reg serial_clock;
+  wire serial_clock;
   divide_by_n #(TICKS_PER_BIT) clock_divider (.clk, .rst, .out(serial_clock));
 
   reg [1:0] state;

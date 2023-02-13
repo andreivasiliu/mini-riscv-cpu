@@ -4,14 +4,14 @@
 module alchitry_top (
     input clk,
     input rst_n,
-    output reg [7:0] led,
+    output [7:0] led,
     input usb_rx,
-    output reg usb_tx,
-    output reg [23:0] io_led,
-    output reg [7:0] io_seg_n,
-    output reg [3:0] io_sel_n,
+    output usb_tx,
+    output [23:0] io_led,
+    output [7:0] io_seg_n,
+    output [3:0] io_sel_n,
     inout [4:0] io_button_bugged,
-    inout [23:0] io_dip,
+    inout [23:0] io_dip
   );
 
   wire rst;
@@ -38,13 +38,11 @@ module alchitry_top (
     .io_seg(io_seg),
     .io_sel(io_sel),
     .io_button(io_button_fixed),
-    .io_dip(io_dip),
+    .io_dip(io_dip)
   );
 
-  always @* begin
-    io_sel_n = ~io_sel;
-    io_seg_n = ~io_seg;
-  end
+  assign io_sel_n = ~io_sel;
+  assign io_seg_n = ~io_seg;
 endmodule
 
 // Copied from Alchitry Labs' example; this fixes the IO board's buttons by

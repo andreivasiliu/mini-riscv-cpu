@@ -6,7 +6,7 @@ module riscv_core(
     output reg [31:0] bus_write_data,
     output reg [31:0] bus_write_address,
     output [7:0] leds8,
-    output [23:0] leds24,
+    output [23:0] leds24
   );
 
   // CPU internal state
@@ -36,6 +36,7 @@ module riscv_core(
   wire signed [11:0] imm12_b = {
     instruction[31], instruction[7], instruction[30:25], instruction[11:8]
   };
+  wire signed [31:1] imm12_b_extended = imm12_b;
   // TODO: Check operations on non :0 wires
   wire [31:12] imm20_u = instruction[31:12];
   wire signed [21:2] imm20_j = {
@@ -43,6 +44,7 @@ module riscv_core(
   };
   // wire signed [11:0] store_offset = {instruction[31:25], instruction[11:7]};
   // wire signed [11:0] load_offset = instruction[31:20];
+  wire [4:0] shift_amount = instruction[24:20];
   reg signed [11:0] store_offset;
   reg signed [11:0] load_offset;
 
@@ -59,15 +61,19 @@ module riscv_core(
   // Register+offset, used for both addi and as a jump target
   wire [31:0] rs1_plus_imm12 = rs1_value + imm12_value;
 
-  assign leds24 = {exception, program_counter[6:0], bus_write_data[15:0]};
-  assign leds8 = {bus_write_address[17:16], 3'b000, stage[2:0]};
+  // assign leds24 = {exception, program_counter[6:0], bus_write_data[15:0]};
+  assign leds24 = {exception, program_counter[6:0], bus_read_data[15:0]};
+  assign leds8 = {bus_write_address[17:16], bus_read_address[17:16], 1'b0, stage[2:0]};
 
   initial begin
     // The main bus serves memory contents starting with this address
     program_counter <= 32'h10000 >> 2;
+    stage <= 0;
   end
 
   always @(posedge cpu_clk) begin
+    $display("Stage %0d: instruction: %0b", stage, instruction);
+
     stage <= stage + 1;
 
     case (stage)
@@ -128,13 +134,17 @@ module riscv_core(
               end else begin
                 rd_value <= rs1_value - rs2_value;  // sub
               end
-              // TODO:
-              // 1: sll
+              1: rd_value <= rs1_value << rs2_value[4:0];  // sll
               2: rd_value <= (rs1_value < rs2_value) ? 1 : 0;  // slt
               3: rd_value <= (rs1_value_unsigned < rs2_value_unsigned) ? 1 : 0;  // sltu
               4: rd_value <= rs1_value ^ rs2_value;  // xor
-              // TODO:
-              // 5: srl/sra
+              5: if (!imm12[10]) begin
+                // srl (shift right logical)
+                rd_value <= rs1_value >> rs2_value[4:0];
+              end else begin
+                // sra (shift right arithmetic)
+                rd_value <= rs1_value >>> rs2_value[4:0];
+              end
               6: rd_value <= rs1_value | rs2_value;  // or
               7: rd_value <= rs1_value & rs2_value;  // and
               default: begin
@@ -148,10 +158,22 @@ module riscv_core(
           // Register/immediate arithmetic/logic operations
           5'b00100: begin
             case (funct3)
+              // TODO: SLLI, SRLI, SRAI
               0: rd_value <= rs1_plus_imm12;  // addi
+              1: begin
+                // slli (shift left logical immediate)
+                rd_value <= rs1_value << shift_amount;
+              end
               2: rd_value <= (rs1_value < imm12_value) ? 1 : 0;  // slti
               3: rd_value <= (rs1_value < imm12_value_unsigned) ? 1 : 0;  // sltiu
               4: rd_value <= rs1_value ^ imm12_value;  // xori
+              5: if (!imm12[10]) begin
+                // srli (shift right logical immediate)
+                rd_value <= rs1_value >> shift_amount;
+              end else begin
+                // srai (shift right arithmetic immediate)
+                rd_value <= rs1_value >>> shift_amount;
+              end
               6: rd_value <= rs1_value | imm12_value;  // ori
               7: rd_value <= rs1_value & imm12_value;  // andi
               default: begin
@@ -192,15 +214,15 @@ module riscv_core(
               2: rd_value <= load_word;
               // Load byte unsigned
               4: case (load_location[1:0])
-                0: rd_value <= {{24{0}}, load_word[7:0]};
-                1: rd_value <= {{24{0}}, load_word[15:8]};
-                2: rd_value <= {{24{0}}, load_word[23:16]};
-                3: rd_value <= {{24{0}}, load_word[31:24]};
+                0: rd_value <= {24'b0, load_word[7:0]};
+                1: rd_value <= {24'b0, load_word[15:8]};
+                2: rd_value <= {24'b0, load_word[23:16]};
+                3: rd_value <= {24'b0, load_word[31:24]};
               endcase
               // Load half-word unsigned
               5: case (load_location[1:0])
-                0: rd_value <= {{16{0}}, load_word[15:0]};
-                2: rd_value <= {{16{0}}, load_word[31:16]};
+                0: rd_value <= {16'b0, load_word[15:0]};
+                2: rd_value <= {16'b0, load_word[31:16]};
                 default: exception <= 1;
               endcase
             endcase
@@ -220,6 +242,7 @@ module riscv_core(
           // Unconditional jump to large immediate offset
           5'b11011: begin
             // TODO: check sizes
+            // TODO: check negative offset
             jump_target <= program_counter + imm20_j[21:3];  // jal
             rd_value <= {jump_target, 2'b00};
           end
@@ -227,7 +250,8 @@ module riscv_core(
           // B-Format instructions (branches)
           // Branch (jump) to small immediate offset on condition
           5'b11000: begin
-            branch_target <= program_counter + imm12_b[11:1];
+            // TODO: Won't work for the 'c' (compact instructions) extension
+            branch_target <= program_counter + imm12_b_extended[31:2];
 
             // TODO: Use last bit for negation
             case (funct3)

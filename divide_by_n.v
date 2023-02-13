@@ -1,11 +1,11 @@
 // Used to divide a clock into a slower clock.
 module divide_by_n #(
     parameter N = 8,
-    parameter BITS = $clog2(N),
+    parameter BITS = $clog2(N)
 ) (
     input clk,
     input rst,
-    output reg out,
+    output reg out
   );
 
   reg [BITS-1:0] counter;

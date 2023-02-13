@@ -4,7 +4,7 @@ module four_digit_multiplexer (
     input clk,
     input [31:0] four_digits,
     output reg[7:0] digit,
-    output reg[3:0] digit_selector,
+    output reg[3:0] digit_selector
   );
 
   reg [1:0] counter;

@@ -1,14 +1,14 @@
 module main (
     input clk,
     input rst,
-    output reg [7:0] led,
+    output [7:0] led,
     input usb_rx,
-    output reg usb_tx,
+    output usb_tx,
     output [23:0] io_led,
-    output reg [7:0] io_seg,
-    output reg [3:0] io_sel,
+    output [7:0] io_seg,
+    output [3:0] io_sel,
     input [4:0] io_button,
-    input [23:0] io_dip,
+    input [23:0] io_dip
   );
 
   wire slow_clk;
@@ -17,7 +17,7 @@ module main (
 
   variable_clock vc (
     .clk, .rst, .var_clk(slow_clk),
-    .speed({io_button[0], io_button[1], io_button[2]}),
+    .speed({io_button[0], io_button[1], io_button[2]})
   );
 
   wire [31:0] bus_read_address, bus_read_data;
@@ -33,7 +33,7 @@ module main (
     .bus_write_address,
     .bus_write_data,
     .serial_out(usb_tx),
-    .display_out,
+    .display_out
   );
 
   riscv_core cpu (
@@ -44,18 +44,15 @@ module main (
     .bus_write_address,
     .bus_write_data,
     .leds24(io_led),
-    .leds8(led),
+    .leds8(led)
   );
 
   four_digit_multiplexer fdm (
     .clk,
     .four_digits(display_out),
     .digit(io_seg),
-    .digit_selector(io_sel),
+    .digit_selector(io_sel)
   );
-
-  always @* begin
-  end
 endmodule
 
 // A clock with 3 speeds, which transitions slowly from one speed to another
@@ -64,7 +61,7 @@ module variable_clock (
     input clk,
     input rst,
     input [2:0] speed,
-    output reg var_clk,
+    output reg var_clk
   );
 
   reg [31:0] var_clk_counter;
